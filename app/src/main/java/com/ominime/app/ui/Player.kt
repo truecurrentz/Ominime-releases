@@ -165,6 +165,9 @@ fun Player(
     var err by remember { mutableStateOf<String?>(null) }
     var show by remember { mutableStateOf(true) }
     val pad = remember { FocusRequester() }
+    val grip = remember { FocusRequester() }
+    var seat by remember { mutableStateOf(false) }
+    var hop by remember { mutableLongStateOf(0L) }
     val telly = BuildConfig.tv
 
     fun flip() {
@@ -265,7 +268,7 @@ fun Player(
                     android.graphics.Typeface.create(family, style)
                 )
             )
-            setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, 15f * (ssize.coerceIn(70, 170) / 100f))
+            setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, (if (BuildConfig.tv) 23f else 15f) * (ssize.coerceIn(70, 170) / 100f))
             setApplyEmbeddedStyles(false)
             setApplyEmbeddedFontSizes(false)
             val rest = when (conf.subpos) {
@@ -637,20 +640,33 @@ fun Player(
         }
     }
 
+    LaunchedEffect(show, telly) {
+        if (telly && !show) runCatching { pad.requestFocus() }
+    }
+
+    LaunchedEffect(pref, side, mine) {
+        val live = mine != null || subs.any { g -> g.isSelected }
+        if (telly && !live) runCatching { pad.requestFocus() }
+    }
+
     Box(
         Modifier
             .fillMaxSize()
             .background(Color.Black)
             .focusRequester(pad)
             .focusable()
+            .onFocusChanged { seat = it.isFocused }
             .onKeyEvent { e ->
                 if (!telly || e.type != KeyEventType.KeyDown) return@onKeyEvent false
+                if (!seat) return@onKeyEvent false
+                val hold = 400L
+                val now = System.currentTimeMillis()
                 when (e.key) {
                     Key.DirectionCenter, Key.Enter -> {
                         if (show) {
-                            flip()
+                            runCatching { grip.requestFocus() }
                         } else {
-                            show = true
+                            flip()
                         }
                         true
                     }
@@ -658,7 +674,10 @@ fun Player(
                         if (show) {
                             false
                         } else {
-                            jump(-10000L)
+                            if (now - hop > hold) {
+                                hop = now
+                                jump(-10000L)
+                            }
                             true
                         }
                     }
@@ -666,15 +685,20 @@ fun Player(
                         if (show) {
                             false
                         } else {
-                            jump(10000L)
+                            if (now - hop > hold) {
+                                hop = now
+                                jump(10000L)
+                            }
                             true
                         }
                     }
                     Key.DirectionDown, Key.DirectionUp -> {
-                        if (show) false else {
+                        if (show) {
+                            runCatching { grip.requestFocus() }
+                        } else {
                             show = true
-                            true
                         }
+                        true
                     }
                     Key.Back -> false
                     else -> false
@@ -818,7 +842,10 @@ fun Player(
                         Tap(Icons.Rounded.SkipPrevious, "Previous", 40.dp, cfg.hasprev) { onPrev() }
                         Tap(Icons.Rounded.Replay10, "Back 10s", 42.dp) { jump(-10000) }
                         Spacer(Modifier.width(8.dp))
-                        PlayMain(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow) {
+                        PlayMain(
+                            if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            grip
+                        ) {
                             if (playing) exo.pause() else exo.play()
                         }
                         Spacer(Modifier.width(8.dp))
@@ -829,7 +856,7 @@ fun Player(
                             Icons.Rounded.Subtitles,
                             "Subtitles",
                             40.dp,
-                            tint = if (subOn) pal.acc else Color.White
+                            tint = if (mine != null || subs.any { g -> g.isSelected }) pal.acc else Color.White
                         ) { panel = true }
                         Tap(Icons.Rounded.Speed, "Speed", 40.dp) { opts = true }
                         Tap(Icons.Rounded.List, "Episodes", 40.dp) { onEps() }
@@ -1142,11 +1169,16 @@ private fun Tap(
 }
 
 @Composable
-private fun PlayMain(icon: androidx.compose.ui.graphics.vector.ImageVector, click: () -> Unit) {
+private fun PlayMain(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    grip: FocusRequester? = null,
+    click: () -> Unit
+) {
     val pal = localpal.current
+    var mod = Modifier.size(52.dp)
+    if (grip != null) mod = mod.focusRequester(grip)
     Box(
-        Modifier
-            .size(52.dp)
+        mod
             .clip(cut(10.dp))
             .background(pal.acc)
             .press(0.96f, click),
@@ -1182,15 +1214,17 @@ private fun Seek(
             .focusable()
             .onKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
+                val step = if (dur > 0) (dur / 90L).coerceIn(4000L, 30000L) else 10000L
                 when (e.key) {
                     Key.DirectionLeft -> {
-                        onDone((at - 10000L).coerceIn(0L, if (dur > 0) dur else at))
+                        onDone((at - step).coerceIn(0L, if (dur > 0) dur else at))
                         true
                     }
                     Key.DirectionRight -> {
-                        onDone((at + 10000L).coerceIn(0L, if (dur > 0) dur else at + 10000L))
+                        onDone((at + step).coerceIn(0L, if (dur > 0) dur else at + step))
                         true
                     }
+                    Key.DirectionCenter, Key.Enter -> true
                     else -> false
                 }
             }
@@ -1454,7 +1488,7 @@ private fun Captions(text: String, conf: com.ominime.app.data.Conf, ssize: Int, 
         conf.subwide -> FontWeight.SemiBold
         else -> FontWeight.Normal
     }
-    val base = 15f * (ssize.coerceIn(70, 170) / 100f)
+    val base = (if (BuildConfig.tv) 23f else 15f) * (ssize.coerceIn(70, 170) / 100f)
     val step = when (conf.subedge) {
         3 -> 2.4.dp
         2 -> 1.8.dp
@@ -1468,7 +1502,13 @@ private fun Captions(text: String, conf: com.ominime.app.data.Conf, ssize: Int, 
             2 -> 0.44f
             else -> 0.05f
         }
-        val lift = maxHeight * (room + if (show) 0.2f else 0f)
+        val lift = maxHeight * (
+            if (BuildConfig.tv) {
+                room * 0.9f + (if (show) 0.26f else 0.04f)
+            } else {
+                room + (if (show) 0.2f else 0f)
+            }
+            )
         Box(
             Modifier
                 .fillMaxWidth()

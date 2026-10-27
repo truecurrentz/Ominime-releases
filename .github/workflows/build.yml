@@ -31,7 +31,8 @@ jobs:
       - name: build
         run: |
           set -o pipefail
-          gradle :app:assemblePhoneRelease :app:assembleTvRelease --stacktrace -Pvcode=${{ github.run_number }} 2>&1 | tee build.log
+          NAME="$(git describe --tags --abbrev=0 2>/dev/null || echo 1.0)"
+          gradle :app:assemblePhoneRelease :app:assembleTvRelease --stacktrace -Pvcode=${{ github.run_number }} -Pvname="$NAME" 2>&1 | tee build.log
 
       - name: report
         if: failure()
@@ -76,6 +77,12 @@ jobs:
             const lines = text.split('\n').filter(l => l.startsWith('e: ')).slice(20, 30);
             for (const line of lines) core.error(line.slice(0, 900));
 
+      - name: inspect
+        run: |
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* 2>/dev/null | tail -1)"
+          "$BT/aapt" dump badging ominime.apk 2>/dev/null | head -1 || true
+          "$BT/apksigner" verify --print-certs ominime.apk 2>/dev/null | grep -i "SHA-256" | head -2 || true
+
       - run: |
           set -e
           find app/build/outputs/apk -name "*.apk" -type f
@@ -91,7 +98,7 @@ jobs:
             ominime-tv.apk
 
       - uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'branch'
+        if: github.ref_type == 'branch' && github.repository == 'truecurrentz/Ominime-priv'
         with:
           tag_name: nightly
           name: Ominime nightly
@@ -106,20 +113,24 @@ jobs:
             ominime-tv.apk
 
       - name: manifest
-        if: github.ref_type == 'branch'
+        if: startsWith(github.ref, 'refs/tags/v') && github.repository == 'truecurrentz/Ominime-priv'
+        env:
+          RUN: ${{ github.run_number }}
+          TAG: ${{ github.ref_name }}
         run: |
           python3 - <<'PY'
           import datetime
           import json
           import os
 
-          repo = os.environ.get("MIRROR_REPO", "truecurrentz/ominime-builds")
-          base = "https://github.com/" + repo + "/releases/download/nightly/"
+          repo = os.environ.get("MIRROR_REPO", "truecurrentz/Ominime-releases")
+          base = "https://github.com/" + repo + "/releases/download/" + os.environ.get("TAG", "latest") + "/"
           stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
           out = {
               "stamp": stamp,
               "build": int(os.environ.get("RUN", "0") or 0),
               "repo": repo,
+              "version": os.environ.get("TAG", ""),
               "phone": {"url": base + "ominime.apk", "size": os.path.getsize("ominime.apk")},
               "tv": {"url": base + "ominime-tv.apk", "size": os.path.getsize("ominime-tv.apk")},
           }
@@ -127,22 +138,68 @@ jobs:
           print(json.dumps(out, indent=1))
           PY
 
-      - name: mirror
-        if: github.ref_type == 'branch'
+      - name: publish
+        if: startsWith(github.ref, 'refs/tags/v') && github.repository == 'truecurrentz/Ominime-priv'
         env:
-          GH_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          GH_TOKEN: ${{ secrets.MIRROR_TOKEN || github.token }}
+          RUN: ${{ github.run_number }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -e
+          REPO="truecurrentz/Ominime-releases"
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning title=Public release skipped::MIRROR_TOKEN is not set, so $REPO was not updated"
+            exit 0
+          fi
+          head="$(git log -1 --pretty=%s)"
+          gh release view "$TAG" -R "$REPO" >/dev/null 2>&1 || gh release create "$TAG" -R "$REPO" --title "Ominime $TAG" --notes "Ominime $TAG"
+          gh release upload "$TAG" ominime.apk ominime-tv.apk manifest.json -R "$REPO" --clobber
+          gh release edit "$TAG" -R "$REPO" --prerelease=false --latest \
+            --title "Ominime $TAG" \
+            --notes "Ominime $TAG, build $RUN
+
+          $head
+
+          - ominime.apk, phones and tablets
+          - ominime-tv.apk, Android TV with the left rail and remote controls
+          - manifest.json, machine readable list of the files above
+
+          Install the phone build by opening the file, or the TV build with adb install or the Downloader app."
+
+      - name: source
+        if: github.ref_type == 'branch'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.MIRROR_TOKEN || github.token }}
           RUN: ${{ github.run_number }}
         run: |
           set -e
-          REPO="truecurrentz/ominime-builds"
-          if [ -z "$GH_TOKEN" ]; then
-            echo "MIRROR_TOKEN is not set, so the public copy was skipped"
-            echo "Create a public repo, add a fine grained token as MIRROR_TOKEN and rerun"
+          REPO="truecurrentz/Ominime-releases"
+          if [ "${{ github.repository }}" = "$REPO" ]; then
+            echo "this is already the public mirror, nothing to copy"
             exit 0
           fi
-          gh release view nightly -R "$REPO" >/dev/null 2>&1 || gh release create nightly -R "$REPO" --prerelease --title "Ominime nightly" --notes "Public builds of Ominime"
-          gh release upload nightly ominime.apk ominime-tv.apk manifest.json -R "$REPO" --clobber
-          gh release edit nightly -R "$REPO" --notes "Ominime for Android and Android TV. Build $RUN."
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning title=Source mirror skipped::MIRROR_TOKEN is not set"
+            exit 0
+          fi
+          git config user.name "ominime bot"
+          git config user.email "bot@ominime.app"
+          URL="https://x-access-token:$GH_TOKEN@github.com/$REPO.git"
+          git fetch -q "$URL" main:refs/remotes/pub/main || true
+          TREE="$(git rev-parse HEAD^{tree})"
+          if git rev-parse -q --verify refs/remotes/pub/main >/dev/null; then
+            OLD="$(git rev-parse refs/remotes/pub/main)"
+            if [ "$(git rev-parse "$OLD^{tree}")" = "$TREE" ]; then
+              echo "source is already in sync"
+              exit 0
+            fi
+            NEW="$(git commit-tree "$TREE" -p "$OLD" -m "sync source from build $RUN")"
+          else
+            NEW="$(git commit-tree "$TREE" -m "sync source from build $RUN")"
+          fi
+          git push -q "$URL" "$NEW:refs/heads/main"
+          echo "pushed source to $REPO"
 
       - uses: actions/upload-artifact@v4
         if: github.ref_type == 'branch'
@@ -153,6 +210,12 @@ jobs:
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v')
         with:
+          name: Ominime ${{ github.ref_name }}
+          body: |
+            Ominime ${{ github.ref_name }}
+
+            ominime.apk - phones and tablets
+            ominime-tv.apk - Android TV, with the left rail and remote controls
           files: |
             ominime.apk
             ominime-tv.apk

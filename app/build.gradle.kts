@@ -14,8 +14,8 @@ android {
         minSdk = 26
         targetSdk = 35
         vectorDrawables { useSupportLibrary = true }
-        versionCode = (project.findProperty("vcode") as String?)?.toIntOrNull() ?: 2
-        versionName = "1.0"
+        versionCode = 1000000 + ((project.findProperty("vcode") as String?)?.toIntOrNull() ?: 2)
+        versionName = (project.findProperty("vname") as String?) ?: "1.0"
     }
 
     flavorDimensions += "device"
