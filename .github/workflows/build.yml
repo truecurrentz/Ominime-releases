@@ -105,6 +105,51 @@ jobs:
             ominime.apk
             ominime-tv.apk
 
+      - name: manifest
+        if: github.ref_type == 'branch'
+        run: |
+          python3 - <<'PY'
+          import datetime
+          import json
+          import os
+
+          repo = os.environ.get("MIRROR_REPO", "truecurrentz/ominime-builds")
+          base = "https://github.com/" + repo + "/releases/download/nightly/"
+          stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          out = {
+              "stamp": stamp,
+              "build": int(os.environ.get("RUN", "0") or 0),
+              "repo": repo,
+              "phone": {"url": base + "ominime.apk", "size": os.path.getsize("ominime.apk")},
+              "tv": {"url": base + "ominime-tv.apk", "size": os.path.getsize("ominime-tv.apk")},
+          }
+          open("manifest.json", "w").write(json.dumps(out, indent=1))
+          print(json.dumps(out, indent=1))
+          PY
+
+      - name: mirror
+        if: github.ref_type == 'branch'
+        env:
+          GH_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          RUN: ${{ github.run_number }}
+        run: |
+          set -e
+          REPO="truecurrentz/ominime-builds"
+          if [ -z "$GH_TOKEN" ]; then
+            echo "MIRROR_TOKEN is not set, so the public copy was skipped"
+            echo "Create a public repo, add a fine grained token as MIRROR_TOKEN and rerun"
+            exit 0
+          fi
+          gh release view nightly -R "$REPO" >/dev/null 2>&1 || gh release create nightly -R "$REPO" --prerelease --title "Ominime nightly" --notes "Public builds of Ominime"
+          gh release upload nightly ominime.apk ominime-tv.apk manifest.json -R "$REPO" --clobber
+          gh release edit nightly -R "$REPO" --notes "Ominime for Android and Android TV. Build $RUN."
+
+      - uses: actions/upload-artifact@v4
+        if: github.ref_type == 'branch'
+        with:
+          name: ominime-manifest
+          path: manifest.json
+
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v')
         with:

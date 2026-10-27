@@ -7,6 +7,7 @@ import coil.ImageLoader
 import com.ominime.app.data.alerts
 import com.ominime.app.data.caps
 import com.ominime.app.data.net
+import com.ominime.app.data.offline
 import com.ominime.app.data.store
 import java.io.File
 
@@ -27,6 +28,7 @@ class App : Application() {
         runCatching { net.init(this) }
         runCatching { caps.init(this) }
         runCatching { store.init(this) }
+        runCatching { offline.init(this) }
         runCatching { alerts.setUp(this) }
         runCatching { alerts.start(this) }
         runCatching {

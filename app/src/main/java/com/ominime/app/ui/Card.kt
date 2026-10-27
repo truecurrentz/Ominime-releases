@@ -208,7 +208,7 @@ fun Resume(r: Rec, click: () -> Unit) {
     val p = localpal.current
     val shape = cut(notch)
     val frac = if (r.dur > 0) (r.pos.toFloat() / r.dur.toFloat()).coerceIn(0f, 1f) else 0f
-    Column(Modifier.width(resumew).clickable(onClick = click)) {
+    Column(Modifier.width(resumew).press(0.97f, click)) {
         Box {
             Pic(r.cover, Modifier.fillMaxWidth().aspectRatio(reel), shape = shape)
             Veil(Modifier.matchParentSize(), shape)
@@ -288,7 +288,7 @@ fun Person(name: String, role: String, img: String?, width: Dp = 92.dp) {
 fun Wide(m: Media, click: () -> Unit) {
     val p = localpal.current
     val shape = cut(notch)
-    Column(Modifier.width(widew).clickable(onClick = click)) {
+    Column(Modifier.width(widew).press(0.97f, click)) {
         Box {
             Pic(m.banner ?: m.cover, Modifier.fillMaxWidth().aspectRatio(wide), shape = shape)
             Veil(Modifier.matchParentSize(), shape)
@@ -333,7 +333,7 @@ fun Wide(m: Media, click: () -> Unit) {
 fun Tile(m: Media, click: () -> Unit) {
     val p = localpal.current
     val shape = cut(notch)
-    Column(Modifier.clickable(onClick = click)) {
+    Column(Modifier.press(0.97f, click)) {
         Box {
             Pic(m.cover, Modifier.fillMaxWidth().aspectRatio(cover), shape = shape)
             Box(

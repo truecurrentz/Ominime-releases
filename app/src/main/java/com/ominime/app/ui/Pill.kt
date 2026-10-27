@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -46,7 +47,8 @@ fun Pill(at: String, onTab: (String) -> Unit) {
     val tabs = listOf(
         Triple("home", "Home", Icons.Rounded.Home),
         Triple("schedule", "Schedule", Icons.Rounded.CalendarMonth),
-        Triple("list", "My List", Icons.Rounded.Bookmark)
+        Triple("list", "My List", Icons.Rounded.Bookmark),
+        Triple("downs", "Downloads", Icons.Rounded.Download)
     )
     Box(
         Modifier

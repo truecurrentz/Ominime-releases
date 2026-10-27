@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -48,6 +49,7 @@ import com.ominime.app.wipecrash
 import com.ominime.app.ui.Crash
 import com.ominime.app.ui.CrashBar
 import com.ominime.app.ui.Detail
+import com.ominime.app.ui.Downs
 import com.ominime.app.ui.Header
 import com.ominime.app.ui.Home
 import com.ominime.app.ui.Library
@@ -55,6 +57,7 @@ import com.ominime.app.ui.Notes
 import com.ominime.app.ui.NoteToast
 import com.ominime.app.ui.Pill
 import com.ominime.app.ui.Rail
+import com.ominime.app.ui.railpeek
 import com.ominime.app.ui.railw
 import com.ominime.app.ui.Schedule
 import com.ominime.app.ui.Seek
@@ -100,7 +103,7 @@ fun Root() {
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: "home"
-    val tabs = setOf("home", "schedule", "list")
+    val tabs = setOf("home", "schedule", "list", "downs")
     val root = route in tabs
     var start by remember { mutableStateOf("") }
     var scan by remember { mutableIntStateOf(1) }
@@ -174,12 +177,14 @@ fun Root() {
 
     val telly = BuildConfig.tv
     val rail = telly && route != "watch/{id}/{ep}"
+    var railOpen by remember { mutableStateOf(true) }
+    val inset by animateDpAsState(if (railOpen) railw else railpeek, tween(240), label = "inset")
 
     Box(Modifier.fillMaxSize().background(p.bg)) {
         Box(
             Modifier
                 .fillMaxSize()
-                .padding(start = if (rail) railw else 0.dp)
+                .padding(start = if (rail) inset else 0.dp)
         ) {
         NavHost(
             nav,
@@ -239,6 +244,12 @@ fun Root() {
                 val s = e.arguments?.getString("start")?.ifBlank { null } ?: start.ifBlank { null }
                 Seek(s) { id -> nav.navigate("detail/$id") }
             }
+            composable("downs") {
+                Downs(
+                    onPlay = { id, ep -> nav.navigate("watch/$id/$ep") },
+                    onBrowse = { nav.tab("home") }
+                )
+            }
             composable("settings") { Settings() }
             composable("notes") {
                 Notes(
@@ -297,6 +308,8 @@ fun Root() {
                 Rail(
                     at = route,
                     hot = hot,
+                    open = railOpen,
+                    onOpen = { railOpen = it },
                     onTab = { key -> nav.tab(key) },
                     onNotes = {
                         store.read()

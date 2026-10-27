@@ -117,7 +117,7 @@ fun CrashBar(report: String, onOpen: () -> Unit, onDrop: () -> Unit) {
             .clip(cut(10.dp))
             .background(p.lift)
             .border(0.9.dp, p.acc.copy(alpha = 0.55f), cut(10.dp))
-            .clickable(onClick = onOpen)
+            .press(0.97f, onOpen)
             .padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -142,7 +142,7 @@ fun CrashBar(report: String, onOpen: () -> Unit, onDrop: () -> Unit) {
                 .size(24.dp)
                 .clip(cut(6.dp))
                 .background(p.glass)
-                .clickable(onClick = onDrop),
+                .press(0.97f, onDrop),
             contentAlignment = Alignment.Center
         ) {
             Text("✕", color = p.text.copy(alpha = 0.7f), fontSize = 11.sp)

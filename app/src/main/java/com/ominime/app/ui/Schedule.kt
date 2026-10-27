@@ -129,7 +129,7 @@ fun Schedule(onOpen: (Int) -> Unit) {
                                 .width(58.dp)
                                 .clip(cut(8.dp))
                                 .background(if (on) p.acc else p.glass)
-                                .clickable { at = i }
+                                .press(0.97f) { at = i }
                                 .padding(vertical = 9.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
@@ -179,7 +179,7 @@ fun Schedule(onOpen: (Int) -> Unit) {
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 3.dp)
                     .clip(cut(12.dp))
-                    .clickable { onOpen(s.m.id) }
+                    .press(0.97f) { onOpen(s.m.id) }
                     .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)

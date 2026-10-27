@@ -62,7 +62,7 @@ fun EpPanel(m: Media?, list: List<Ep>, cur: Int, onPick: (Int) -> Unit, onClose:
                         .clip(shape)
                         .background(if (on) p.acc.copy(alpha = 0.14f) else p.glass)
                         .border(0.7.dp, if (on) p.acc.copy(alpha = 0.55f) else Color.Transparent, shape)
-                        .clickable { onPick(e.num) }
+                        .press(0.97f) { onPick(e.num) }
                         .padding(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -146,7 +146,7 @@ fun SrcPanel(
                         .clip(shape)
                         .background(if (on) p.acc.copy(alpha = 0.12f) else p.glass)
                         .border(0.8.dp, if (on) p.acc.copy(alpha = 0.55f) else p.line, shape)
-                        .clickable { onPick(i) }
+                        .press(0.97f) { onPick(i) }
                         .padding(horizontal = 10.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

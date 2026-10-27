@@ -75,7 +75,7 @@ fun Filters(f: Find, onChange: (Find) -> Unit, onClose: () -> Unit) {
                 letterSpacing = 0.9.sp,
                 modifier = Modifier
                     .clip(cut(5.dp))
-                    .clickable(onClick = onClose)
+                    .press(0.97f, onClose)
                     .padding(horizontal = 8.dp, vertical = 5.dp)
             )
         }
@@ -160,7 +160,7 @@ private fun Cell(k: Kind, f: Find, expanded: Boolean, toggle: () -> Unit) {
                 .clip(shape)
                 .background(if (on) p.acc.copy(alpha = 0.12f) else p.glass)
                 .border(0.8.dp, if (on) p.acc.copy(alpha = 0.6f) else p.line, shape)
-                .clickable(onClick = toggle)
+                .press(0.97f, toggle)
                 .padding(start = 11.dp, end = 9.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

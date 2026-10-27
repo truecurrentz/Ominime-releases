@@ -33,6 +33,8 @@ import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ViewList
 import androidx.compose.material3.Icon
@@ -83,6 +85,7 @@ fun Detail(
     var grid by remember { mutableStateOf(true) }
     var all by remember { mutableStateOf(false) }
     var first by remember { mutableStateOf(true) }
+    var batch by remember { mutableStateOf(false) }
     val d by store.live.collectAsState()
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -133,6 +136,8 @@ fun Detail(
     }
 
     Box(Modifier.fillMaxSize().background(p.bg)) {
+        val mm = m
+        if (batch && mm != null) Batch(mm, eps, { batch = false })
         LazyColumn(
             state = list,
             modifier = Modifier.fillMaxSize(),
@@ -159,7 +164,7 @@ fun Detail(
                             .weight(1f)
                             .clip(cut(10.dp))
                             .background(p.acc)
-                            .clickable {
+                            .press(0.97f) {
                                 val at = if (mark != null && mark.ep > 0) mark.ep else 1
                                 onWatch(id, at)
                             }
@@ -183,6 +188,7 @@ fun Detail(
                         50.dp
                     ) { toggle() }
                     Circle(Icons.Rounded.Share, "Share", 50.dp) { share() }
+                    Circle(Icons.Rounded.Download, "Download", 50.dp) { batch = true }
                 }
             }
 
@@ -211,7 +217,7 @@ fun Detail(
                                 color = p.text,
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(top = 7.dp).clickable { open = !open }
+                                modifier = Modifier.padding(top = 7.dp).press(0.97f) { open = !open }
                             )
                         }
                     }
@@ -254,11 +260,21 @@ fun Detail(
 
             if (eps.isEmpty() && !first) {
                 item(key = "blank") {
-                    Blank(
-                        "No episodes found",
-                        "The sources did not return an episode list for this title.",
-                        icon = Icons.Rounded.PlayArrow
-                    )
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Blank(
+                            "No episodes found",
+                            "The sources did not return an episode list for this title.",
+                            icon = Icons.Rounded.PlayArrow
+                        )
+                        Btn("Try again", icon = Icons.Rounded.Refresh) {
+                            first = true
+                            scope.launch {
+                                val md = m
+                                if (md != null) runCatching { repo.eps(md) }.onSuccess { eps = it.first }
+                                first = false
+                            }
+                        }
+                    }
                 }
             }
 
@@ -578,7 +594,7 @@ private fun EpRow(e: Ep, mark: com.ominime.app.data.Rec?, onClick: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 3.dp)
             .clip(cut(12.dp))
-            .clickable(onClick = onClick)
+            .press(0.97f, onClick)
             .padding(6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)

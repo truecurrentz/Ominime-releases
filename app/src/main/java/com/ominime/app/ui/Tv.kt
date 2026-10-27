@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -40,23 +41,95 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.focusable
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import kotlinx.coroutines.delay
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 val railw = 128.dp
 
+val railpeek = 26.dp
+
 @Composable
-fun Rail(at: String, hot: Int, onTab: (String) -> Unit, onNotes: () -> Unit, onSettings: () -> Unit) {
+fun Rail(
+    at: String,
+    hot: Int,
+    open: Boolean,
+    onOpen: (Boolean) -> Unit,
+    onTab: (String) -> Unit,
+    onNotes: () -> Unit,
+    onSettings: () -> Unit
+) {
     val p = localpal.current
     val first = remember { FocusRequester() }
+    val handle = remember { FocusRequester() }
+    var near by remember { mutableStateOf(false) }
+
+    val w by animateDpAsState(if (open) railw else railpeek, tween(240), label = "railw")
 
     LaunchedEffect(Unit) {
         runCatching { first.requestFocus() }
     }
 
+    LaunchedEffect(near, at) {
+        if (near) {
+            onOpen(true)
+        } else {
+            delay(4200)
+            onOpen(false)
+        }
+    }
+
+    if (!open) {
+        Column(
+            Modifier
+                .width(w)
+                .fillMaxHeight()
+                .background(p.dock.copy(alpha = 0.92f))
+                .border(0.7.dp, p.line)
+                .focusRequester(handle)
+                .focusable()
+                .onFocusChanged { near = it.isFocused }
+                .onKeyEvent { e ->
+                    if (e.type == KeyEventType.KeyDown && (e.key == Key.DirectionRight || e.key == Key.DirectionCenter || e.key == Key.Enter)) {
+                        onOpen(true)
+                        runCatching { first.requestFocus() }
+                        true
+                    } else {
+                        false
+                    }
+                }
+                .press(0.96f) {
+                    onOpen(true)
+                    runCatching { first.requestFocus() }
+                },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                Modifier
+                    .width(3.dp)
+                    .height(46.dp)
+                    .clip(cut(2.dp))
+                    .background(Brush.verticalGradient(listOf(p.acc, p.acc2)))
+            )
+            Spacer(Modifier.height(9.dp))
+            Icon(Icons.Rounded.ChevronRight, "Open menu", tint = p.acc, modifier = Modifier.size(18.dp))
+        }
+        return
+    }
+
     Column(
         Modifier
-            .width(railw)
+            .width(w)
             .fillMaxHeight()
             .background(p.dock.copy(alpha = 0.99f))
             .border(0.7.dp, p.line)
@@ -76,14 +149,15 @@ fun Rail(at: String, hot: Int, onTab: (String) -> Unit, onNotes: () -> Unit, onS
         }
         Spacer(Modifier.height(14.dp))
 
-        Slot("home", "Home", Icons.Rounded.Home, at == "home", 0, first, onTab)
-        Slot("schedule", "Schedule", Icons.Rounded.CalendarMonth, at == "schedule", 0, null, onTab)
-        Slot("list", "My List", Icons.Rounded.Bookmark, at == "list", 0, null, onTab)
+        Slot("home", "Home", Icons.Rounded.Home, at == "home", 0, first, { near = it }, onTab)
+        Slot("schedule", "Schedule", Icons.Rounded.CalendarMonth, at == "schedule", 0, null, { near = it }, onTab)
+        Slot("list", "My List", Icons.Rounded.Bookmark, at == "list", 0, null, { near = it }, onTab)
+        Slot("downs", "Downloads", Icons.Rounded.Download, at == "downs", 0, null, { near = it }, onTab)
 
         Spacer(Modifier.weight(1f))
 
-        Slot("notes", "Activity", Icons.Rounded.Notifications, at == "notes", hot, null) { onNotes() }
-        Slot("settings", "Settings", Icons.Rounded.Settings, at == "settings", 0, null) { onSettings() }
+        Slot("notes", "Activity", Icons.Rounded.Notifications, at == "notes", hot, null, {}, { onNotes() })
+        Slot("settings", "Settings", Icons.Rounded.Settings, at == "settings", 0, null, {}, { onSettings() })
     }
 }
 
@@ -95,6 +169,7 @@ private fun Slot(
     on: Boolean,
     hot: Int,
     grip: FocusRequester?,
+    watch: (Boolean) -> Unit = {},
     click: (String) -> Unit
 ) {
     val p = localpal.current
@@ -120,7 +195,7 @@ private fun Slot(
             },
             cut(10.dp)
         )
-        .onFocusChanged { foc = it.isFocused }
+        .onFocusChanged { st -> foc = st.isFocused; watch(st.isFocused) }
     if (grip != null) mod = mod.focusRequester(grip)
 
     Column(

@@ -177,7 +177,7 @@ fun Banner(title: String, note: String, action: String, onAction: () -> Unit) {
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .padding(top = 2.dp)
-                    .clickable(onClick = onAction)
+                    .press(0.97f, onAction)
             )
         }
     }
@@ -202,7 +202,7 @@ fun GenresTile(name: String, count: String, tone: Int, art: String?, mod: Modifi
             .height(116.dp)
             .clip(cut(16.dp))
             .background(Brush.linearGradient(listOf(pair.first, pair.second)))
-            .clickable(onClick = click)
+            .press(0.97f, click)
     ) {
         if (art != null) {
             Pic(art, Modifier.fillMaxSize(), shape = cut(16.dp))

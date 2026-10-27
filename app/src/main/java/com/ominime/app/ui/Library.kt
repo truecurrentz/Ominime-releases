@@ -96,7 +96,7 @@ fun Library(onOpen: (Int) -> Unit, onPlay: (Int, Int) -> Unit, onExplore: () -> 
                                 .clip(cut(8.dp))
                                 .background(p.glass)
                                 .border(0.8.dp, p.line, cut(8.dp))
-                                .clickable { move = true },
+                                .press(0.97f) { move = true },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -181,7 +181,7 @@ private fun Progress(r: Rec, onOpen: () -> Unit, onDrop: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 3.dp)
             .clip(cut(12.dp))
-            .clickable(onClick = onOpen)
+            .press(0.97f, onOpen)
             .padding(7.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -235,7 +235,7 @@ private fun Saved(r: Rec, onOpen: () -> Unit, onDrop: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 3.dp)
             .clip(cut(12.dp))
-            .clickable(onClick = onOpen)
+            .press(0.97f, onOpen)
             .padding(7.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)

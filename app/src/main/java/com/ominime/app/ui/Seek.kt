@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +81,7 @@ fun Seek(start: String?, onOpen: (Int) -> Unit) {
     var more by remember { mutableStateOf(true) }
     val list = rememberLazyListState()
     val focus = remember { FocusRequester() }
+    var hot by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     suspend fun load(first: Boolean) {
@@ -142,7 +144,7 @@ fun Seek(start: String?, onOpen: (Int) -> Unit) {
                                 .weight(1f)
                                 .clip(RoundedChip)
                                 .background(p.glass)
-                                .border(0.8.dp, p.line, RoundedChip)
+                                .border(if (hot) 2.dp else 0.8.dp, if (hot) p.acc else p.line, RoundedChip)
                                 .padding(start = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -154,7 +156,10 @@ fun Seek(start: String?, onOpen: (Int) -> Unit) {
                                 singleLine = true,
                                 textStyle = TextStyle(color = p.text, fontSize = 14.sp, lineHeight = 18.sp),
                                 cursorBrush = SolidColor(p.acc),
-                                modifier = Modifier.weight(1f).focusRequester(focus),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(focus)
+                                    .onFocusChanged { hot = it.isFocused },
                                 decorationBox = { inner ->
                                     Box(
                                         Modifier.fillMaxWidth().height(48.dp),
@@ -175,7 +180,7 @@ fun Seek(start: String?, onOpen: (Int) -> Unit) {
                                     modifier = Modifier
                                         .padding(8.dp)
                                         .size(16.dp)
-                                        .clickable { q = "" }
+                                        .press(0.97f) { q = "" }
                                 )
                             }
                             Box(
@@ -186,7 +191,7 @@ fun Seek(start: String?, onOpen: (Int) -> Unit) {
                             )
                             Box(
                                 Modifier
-                                    .clickable { sheet = !sheet }
+                                    .press(0.97f) { sheet = !sheet }
                                     .padding(horizontal = 14.dp, vertical = 14.dp)
                             ) {
                                 Row(
@@ -239,7 +244,7 @@ fun Seek(start: String?, onOpen: (Int) -> Unit) {
                                 "Reset",
                                 color = p.mute,
                                 fontSize = 12.sp,
-                                modifier = Modifier.clickable { f = Find(sort = f.sort) }
+                                modifier = Modifier.press(0.97f) { f = Find(sort = f.sort) }
                             )
                         }
                     }

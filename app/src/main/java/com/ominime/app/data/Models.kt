@@ -176,6 +176,7 @@ data class Conf(
     val subfont: String = "sans",
     val subital: Boolean = false,
     val subwide: Boolean = false,
+    val dsubs: String = "en",
     val acc: String = "orange"
 )
 

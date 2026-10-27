@@ -14,6 +14,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.animation.core.spring
@@ -228,12 +229,26 @@ fun Btn(
     }
 }
 
+
+@Composable
+fun Modifier.aim(shape: Shape = cut(9.dp), lift: Float = 1.04f): Modifier {
+    if (!BuildConfig.tv) return this
+    val pal = localpal.current
+    var on by remember { mutableStateOf(false) }
+    val s by animateFloatAsState(if (on) lift else 1f, tween(140), label = "aim")
+    return this
+        .onFocusChanged { on = it.isFocused }
+        .graphicsLayer { scaleX = s; scaleY = s }
+        .border(if (on) 2.dp else 0.dp, if (on) pal.acc else Color.Transparent, shape)
+}
+
 @Composable
 fun Label(text: String, sel: Boolean = false, mod: Modifier = Modifier, click: () -> Unit) {
     val p = localpal.current
     val shape = cut(7.dp)
     Box(
         mod
+            .aim(shape)
             .clip(shape)
             .background(if (sel) p.acc else p.glass)
             .then(if (sel) Modifier else Modifier.border(0.7.dp, p.line, shape))
@@ -286,7 +301,7 @@ fun Head(title: String, action: String? = null, onAction: () -> Unit = {}) {
                 letterSpacing = 0.9.sp,
                 modifier = Modifier
                     .clip(CircleShape)
-                    .clickable(onClick = onAction)
+                    .press(0.97f, onAction)
                     .padding(horizontal = 8.dp, vertical = 5.dp)
             )
         }
@@ -483,7 +498,7 @@ fun Seg(options: List<String>, at: Int, mod: Modifier = Modifier, onPick: (Int) 
                     .weight(1f)
                     .clip(cut(6.dp))
                     .background(if (on) p.acc else Color.Transparent)
-                    .clickable { onPick(i) }
+                    .press(0.97f) { onPick(i) }
                     .padding(vertical = 9.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -557,7 +572,7 @@ fun Side(
                         .clip(cut(7.dp))
                         .background(p.glass)
                         .border(0.7.dp, p.line, cut(7.dp))
-                        .clickable(onClick = onClose),
+                        .press(0.97f, onClose),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Rounded.Close, "Close", tint = p.text, modifier = Modifier.size(15.dp))
@@ -575,6 +590,7 @@ fun Pick(text: String, on: Boolean, note: String? = null, mod: Modifier = Modifi
     val shape = cut(7.dp)
     Row(
         mod
+            .aim(shape)
             .clip(shape)
             .background(if (on) p.acc else p.glass)
             .border(0.7.dp, if (on) Color.Transparent else p.line, shape)
@@ -618,7 +634,7 @@ fun Discord(onClick: () -> Unit) {
                 )
             )
             .border(0.9.dp, mark.copy(alpha = 0.5f), cut(14.dp, 0.22f))
-            .clickable(onClick = onClick)
+            .press(0.97f, onClick)
     ) {
         Box(
             Modifier
@@ -777,7 +793,7 @@ fun Stat(
                             .clip(cut(8.dp))
                             .background(p.glass)
                             .border(0.8.dp, p.line, cut(8.dp))
-                            .clickable { onClose() },
+                            .press(0.97f) { onClose() },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Rounded.Close, "Close", tint = p.text.copy(alpha = 0.7f), modifier = Modifier.size(13.dp))
@@ -879,13 +895,22 @@ fun Modifier.press(scale: Float = 0.965f, onClick: () -> Unit): Modifier = this.
     val held by src.collectIsPressedAsState()
     val aim by src.collectIsFocusedAsState()
     val pal = localpal.current
-    val up = if (BuildConfig.tv && aim) 1.05f else 1f
+    val up = if (BuildConfig.tv && aim) 1.06f else 1f
     val s by animateFloatAsState(
         targetValue = if (held) scale else up,
         animationSpec = spring(dampingRatio = 0.55f, stiffness = 900f),
         label = "press"
     )
+    val shape = cut(9.dp)
     this.graphicsLayer { scaleX = s; scaleY = s }
-        .then(if (BuildConfig.tv && aim) Modifier.border(2.dp, pal.acc, cut(9.dp)) else Modifier)
+        .then(
+            if (BuildConfig.tv && aim) {
+                Modifier
+                    .border(2.5.dp, pal.acc, shape)
+                    .border(5.dp, pal.acc.copy(alpha = 0.22f), shape)
+            } else {
+                Modifier
+            }
+        )
         .clickable(interactionSource = src, indication = null, onClick = onClick)
 }

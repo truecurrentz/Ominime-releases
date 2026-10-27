@@ -112,7 +112,7 @@ fun Settings() {
                                 .clip(cut(7.dp))
                                 .background(one.second)
                                 .border(if (on) 2.dp else 0.8.dp, if (on) p.text else p.line, cut(7.dp))
-                                .clickable { store.conf(c.copy(acc = one.first)) }
+                                .press(0.97f) { store.conf(c.copy(acc = one.first)) }
                         )
                     }
                 }
@@ -171,7 +171,7 @@ fun Settings() {
                                     if (on) p.acc else p.line,
                                     cut(7.dp)
                                 )
-                                .clickable { store.conf(c.copy(subcolor = key)) }
+                                .press(0.97f) { store.conf(c.copy(subcolor = key)) }
                         )
                     }
                 }
@@ -263,7 +263,7 @@ fun Settings() {
                     }
                 }
                 Row(
-                    Modifier.fillMaxWidth().clip(CircleShape).clickable { store.wipe() }.padding(vertical = 6.dp),
+                    Modifier.fillMaxWidth().clip(CircleShape).press(0.97f) { store.wipe() }.padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Clear watch history", color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -426,7 +426,7 @@ private fun Link(text: String, click: () -> Unit) {
             .clip(cut(8.dp))
             .background(p.glass)
             .border(0.7.dp, p.line, cut(8.dp))
-            .clickable(onClick = click)
+            .press(0.97f, click)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

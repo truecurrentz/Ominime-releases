@@ -90,7 +90,7 @@ fun Notes(onBack: () -> Unit, onOpen: (Int) -> Unit) {
                         .clip(cut(10.dp))
                         .background(p.glass)
                         .border(0.8.dp, p.line, cut(10.dp))
-                        .clickable(onClick = onBack),
+                        .press(0.97f, onBack),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Rounded.ArrowBack, "Back", tint = p.text, modifier = Modifier.size(18.dp))
@@ -297,7 +297,7 @@ fun NoteToast(note: Note?, onOpen: (Int) -> Unit, onClose: () -> Unit) {
                     .size(26.dp)
                     .clip(cut(6.dp))
                     .background(p.glass)
-                    .clickable(onClick = onClose),
+                    .press(0.97f, onClose),
                 contentAlignment = Alignment.Center
             ) {
                 Text("✕", color = p.text.copy(alpha = 0.7f), fontSize = 11.sp)

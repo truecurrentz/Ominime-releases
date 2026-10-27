@@ -914,7 +914,7 @@ fun Player(
                         .clip(skipShape)
                         .background(Color(0xE60A0A0C))
                         .border(0.9.dp, pal.acc2.copy(alpha = 0.55f), skipShape)
-                        .clickable {
+                        .press(0.97f) {
                             exo.seekTo((cut.end * 1000).toLong())
                             pos = (cut.end * 1000).toLong()
                         }
@@ -1129,7 +1129,7 @@ private fun Tap(
     click: () -> Unit
 ) {
     Box(
-        Modifier.size(size).clip(CircleShape).clickable(enabled = on, onClick = click),
+        Modifier.size(size).clip(CircleShape).then(if (on) Modifier.press(0.97f, click) else Modifier),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -1307,6 +1307,10 @@ private fun SubPanel(
     val external = extra.sortedBy { langs.name(it.lang).lowercase() }
     val total = embedded.size + external.size
     val off = mine == null && embedded.none { it.second.isSelected }
+    val head = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        if (BuildConfig.tv) runCatching { head.requestFocus() }
+    }
     Side(
         "Subtitles",
         when {
@@ -1319,10 +1323,12 @@ private fun SubPanel(
         Row(
             Modifier
                 .fillMaxWidth()
+                .aim(cut(8.dp), 1.02f)
+                .focusRequester(head)
                 .clip(cut(8.dp))
                 .background(if (off) Color(0x1FFFFFFF) else Color(0x0DFFFFFF))
                 .border(0.7.dp, if (off) Color(0x66FFFFFF) else Color(0x1AFFFFFF), cut(8.dp))
-                .clickable {
+                .press(0.96f) {
                     onMine(null)
                     onPick(null, 0)
                 }
@@ -1379,9 +1385,10 @@ private fun Track(code: String, label: String?, on: Boolean, click: () -> Unit) 
     Row(
         Modifier
             .fillMaxWidth()
+            .aim(cut(8.dp), 1.02f)
             .clip(cut(8.dp))
-            .background(if (on) Color(0x22FF6A00) else Color(0x0DFFFFFF))
-            .border(0.7.dp, if (on) Color(0x66FF6A00) else Color(0x1AFFFFFF), cut(8.dp))
+            .background(if (on) pal.acc.copy(alpha = 0.16f) else Color(0x0DFFFFFF))
+            .border(0.7.dp, if (on) pal.acc.copy(alpha = 0.5f) else Color(0x1AFFFFFF), cut(8.dp))
             .press(0.96f, click)
             .padding(horizontal = 10.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically

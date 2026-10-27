@@ -149,7 +149,7 @@ private fun Knob(icon: ImageVector, note: String, click: () -> Unit) {
             .clip(shape)
             .background(p.glass)
             .border(0.8.dp, p.line, shape)
-            .clickable(onClick = click),
+            .press(0.97f, click),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, note, tint = p.text, modifier = Modifier.size(18.dp))

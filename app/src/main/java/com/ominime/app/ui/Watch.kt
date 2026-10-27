@@ -48,6 +48,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.ominime.app.data.Ep
+import com.ominime.app.data.Stream
+import com.ominime.app.data.offline
 import com.ominime.app.data.Play
 import com.ominime.app.data.Rec
 import com.ominime.app.data.Src
@@ -107,6 +109,25 @@ fun Watch(
             if (eps.isEmpty()) runCatching { repo.eps(md) }.onSuccess { eps = it.first }
             val mark = store.find(id)
             start = if (mark != null && mark.ep == cur) mark.pos else 0L
+            val off = offline.hit(id, cur)
+            if (off != null) {
+                val mark = offline.find(id, cur)
+                val tracks = if (mark != null) offline.local(mark) else emptyList()
+                play = Play(
+                    audio = c.audio,
+                    streams = listOf(
+                        Stream(
+                            url = "file://" + off.absolutePath,
+                            kind = "file",
+                            server = "Downloaded",
+                            prio = 99,
+                            subs = tracks
+                        )
+                    )
+                )
+                at = 0
+                return@runCatching
+            }
             val one = repo.play(md, aud ?: c.audio, cur)
             play = one
             at = 0
@@ -300,7 +321,7 @@ private fun Rotate(onBack: () -> Unit) {
                     .clip(CircleShape)
                     .background(androidx.compose.ui.graphics.Color(0x33FFFFFF))
                     .border(0.8.dp, androidx.compose.ui.graphics.Color(0x26FFFFFF), CircleShape)
-                    .clickable(onClick = onBack),
+                    .press(0.97f, onBack),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
