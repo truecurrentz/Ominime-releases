@@ -1,0 +1,31 @@
+name: art
+
+on:
+  push:
+    paths:
+      - ".github/workflows/art.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: grab
+        run: |
+          mkdir -p app/src/main/res/drawable-nodpi
+          curl -sSL -w "logo %{http_code} %{size_download}\n" -o app/src/main/res/drawable-nodpi/logo.png "https://i.postimg.cc/nrnsJRTg/1000019659-removebg-preview.png"
+          curl -sSL -w "icon %{http_code} %{size_download}\n" -o app/src/main/res/drawable-nodpi/icon.png "https://i.postimg.cc/J46QpZz1/1000019662-removebg-preview.png"
+          ls -lh app/src/main/res/drawable-nodpi
+      - name: push
+        run: |
+          git config user.name ominime
+          git config user.email bot@ominime.app
+          git status --short
+          git add -A app/src/main/res
+          git diff --cached --stat
+          git commit -m "add supplied logo art"
+          git push origin HEAD:refs/heads/arena/dad7464e-ominime-priv
