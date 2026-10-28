@@ -168,6 +168,8 @@ fun Player(
     val grip = remember { FocusRequester() }
     var seat by remember { mutableStateOf(false) }
     var hop by remember { mutableLongStateOf(0L) }
+    var row by remember { mutableIntStateOf(2) }
+    var sel by remember { mutableIntStateOf(2) }
     val telly = BuildConfig.tv
 
     fun flip() {
@@ -220,6 +222,28 @@ fun Player(
         exo.seekTo(to)
         pos = to
         rip = if (ms < 0) 0 else 1
+    }
+
+    fun fire(i: Int) {
+        when (i) {
+            0 -> if (cfg.hasprev) onPrev()
+            1 -> jump(-10000L)
+            2 -> flip()
+            3 -> jump(10000L)
+            4 -> if (cfg.hasnext) onNext()
+            5 -> panel = true
+            6 -> opts = true
+            7 -> onEps()
+            8 -> onServers()
+        }
+    }
+
+    fun move(dir: Int) {
+        val step = if (dur > 0) (dur / 90L).coerceIn(4000L, 30000L) else 10000L
+        val at = (exo.currentPosition + dir * step).coerceIn(0L, if (dur > 0) dur else Long.MAX_VALUE)
+        exo.seekTo(at)
+        pos = at
+        rip = if (dir < 0) 0 else 1
     }
 
     val pv = remember {
@@ -640,13 +664,11 @@ fun Player(
         }
     }
 
-    LaunchedEffect(show, telly) {
-        if (telly && !show) runCatching { pad.requestFocus() }
-    }
-
-    LaunchedEffect(pref, side, mine) {
-        val live = mine != null || subs.any { g -> g.isSelected }
-        if (telly && !live) runCatching { pad.requestFocus() }
+    LaunchedEffect(show, panel, opts, telly) {
+        if (!telly) return@LaunchedEffect
+        row = 2
+        sel = 2
+        runCatching { pad.requestFocus() }
     }
 
     Box(
@@ -658,45 +680,69 @@ fun Player(
             .onFocusChanged { seat = it.isFocused }
             .onKeyEvent { e ->
                 if (!telly || e.type != KeyEventType.KeyDown) return@onKeyEvent false
-                if (!seat) return@onKeyEvent false
-                val hold = 400L
-                val now = System.currentTimeMillis()
+                val code = e.nativeKeyEvent.keyCode
+                if (code == android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE || code == android.view.KeyEvent.KEYCODE_HEADSETHOOK) {
+                    flip()
+                    return@onKeyEvent true
+                }
                 when (e.key) {
                     Key.DirectionCenter, Key.Enter -> {
-                        if (show) {
-                            runCatching { grip.requestFocus() }
-                        } else {
+                        if (!show) {
                             flip()
+                        } else {
+                            when (row) {
+                                0 -> onBack()
+                                1 -> if (dur > 0) {
+                                    val at = pos
+                                    val step = (dur / 90L).coerceIn(4000L, 30000L)
+                                    exo.seekTo((at + step).coerceIn(0L, dur))
+                                }
+                                else -> fire(sel)
+                            }
                         }
                         true
                     }
                     Key.DirectionLeft -> {
-                        if (show) {
-                            false
-                        } else {
-                            if (now - hop > hold) {
-                                hop = now
-                                jump(-10000L)
+                        when {
+                            !show -> {
+                                if (System.currentTimeMillis() - hop > 400L) {
+                                    hop = System.currentTimeMillis()
+                                    jump(-10000L)
+                                }
                             }
-                            true
+                            row == 2 -> sel = (sel - 1).coerceAtLeast(0)
+                            else -> move(-1)
                         }
+                        true
                     }
                     Key.DirectionRight -> {
-                        if (show) {
-                            false
-                        } else {
-                            if (now - hop > hold) {
-                                hop = now
-                                jump(10000L)
+                        when {
+                            !show -> {
+                                if (System.currentTimeMillis() - hop > 400L) {
+                                    hop = System.currentTimeMillis()
+                                    jump(10000L)
+                                }
                             }
-                            true
+                            row == 2 -> sel = (sel + 1).coerceAtMost(8)
+                            else -> move(1)
                         }
+                        true
                     }
-                    Key.DirectionDown, Key.DirectionUp -> {
-                        if (show) {
-                            runCatching { grip.requestFocus() }
-                        } else {
+                    Key.DirectionUp -> {
+                        if (!show) {
                             show = true
+                            row = 2
+                        } else {
+                            row = (row - 1).coerceAtLeast(0)
+                        }
+                        true
+                    }
+                    Key.DirectionDown -> {
+                        if (!show) {
+                            show = true
+                            row = 2
+                        } else {
+                            row = (row + 1).coerceAtMost(2)
                         }
                         true
                     }
@@ -826,6 +872,7 @@ fun Player(
                             dur = dur,
                             buf = buf,
                             marks = if (cfg.intro) cuts else emptyList(),
+                            pick = show && row == 1,
                             mod = Modifier.weight(1f),
                             onScrub = { pos = it },
                             onDone = { exo.seekTo(it); pos = it }
@@ -839,28 +886,29 @@ fun Player(
                     }
                     Spacer(Modifier.height(4.dp))
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Tap(Icons.Rounded.SkipPrevious, "Previous", 40.dp, cfg.hasprev) { onPrev() }
-                        Tap(Icons.Rounded.Replay10, "Back 10s", 42.dp) { jump(-10000) }
+                        val bar = row == 2
+                        Tap(Icons.Rounded.SkipPrevious, "Previous", 40.dp, cfg.hasprev, pick = bar && sel == 0) { fire(0) }
+                        Tap(Icons.Rounded.Replay10, "Back 10s", 42.dp, pick = bar && sel == 1) { fire(1) }
                         Spacer(Modifier.width(8.dp))
                         PlayMain(
                             if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            grip
-                        ) {
-                            if (playing) exo.pause() else exo.play()
-                        }
+                            grip,
+                            bar && sel == 2
+                        ) { fire(2) }
                         Spacer(Modifier.width(8.dp))
-                        Tap(Icons.Rounded.Forward10, "Forward 10s", 42.dp) { jump(10000) }
-                        Tap(Icons.Rounded.SkipNext, "Next", 40.dp, cfg.hasnext) { onNext() }
+                        Tap(Icons.Rounded.Forward10, "Forward 10s", 42.dp, pick = bar && sel == 3) { fire(3) }
+                        Tap(Icons.Rounded.SkipNext, "Next", 40.dp, cfg.hasnext, pick = bar && sel == 4) { fire(4) }
                         Spacer(Modifier.weight(1f))
                         Tap(
                             Icons.Rounded.Subtitles,
                             "Subtitles",
                             40.dp,
+                            pick = bar && sel == 5,
                             tint = if (mine != null || subs.any { g -> g.isSelected }) pal.acc else Color.White
-                        ) { panel = true }
-                        Tap(Icons.Rounded.Speed, "Speed", 40.dp) { opts = true }
-                        Tap(Icons.Rounded.List, "Episodes", 40.dp) { onEps() }
-                        Tap(Icons.Rounded.Settings, "Servers", 40.dp) { onServers() }
+                        ) { fire(5) }
+                        Tap(Icons.Rounded.Speed, "Speed", 40.dp, pick = bar && sel == 6) { fire(6) }
+                        Tap(Icons.Rounded.List, "Episodes", 40.dp, pick = bar && sel == 7) { fire(7) }
+                        Tap(Icons.Rounded.Settings, "Servers", 40.dp, pick = bar && sel == 8) { fire(8) }
                     }
                 }
             }
@@ -1152,11 +1200,18 @@ private fun Tap(
     note: String,
     size: androidx.compose.ui.unit.Dp = 42.dp,
     on: Boolean = true,
+    pick: Boolean = false,
     tint: Color = Color.White,
     click: () -> Unit
 ) {
+    val pal = localpal.current
     Box(
-        Modifier.size(size).clip(CircleShape).then(if (on) Modifier.press(0.97f, click) else Modifier),
+        Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(if (pick) pal.acc.copy(alpha = 0.22f) else Color.Transparent)
+            .then(if (pick) Modifier.border(2.dp, pal.acc, CircleShape) else Modifier)
+            .then(if (on) Modifier.press(0.97f, click) else Modifier),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -1172,6 +1227,7 @@ private fun Tap(
 private fun PlayMain(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     grip: FocusRequester? = null,
+    pick: Boolean = false,
     click: () -> Unit
 ) {
     val pal = localpal.current
@@ -1181,6 +1237,7 @@ private fun PlayMain(
         mod
             .clip(cut(10.dp))
             .background(pal.acc)
+            .then(if (pick) Modifier.border(3.dp, Color.White, cut(10.dp)) else Modifier)
             .press(0.96f, click),
         contentAlignment = Alignment.Center
     ) {
@@ -1194,6 +1251,7 @@ private fun Seek(
     dur: Long,
     buf: Long,
     marks: List<aniskip.Cut> = emptyList(),
+    pick: Boolean = false,
     mod: Modifier = Modifier,
     onScrub: (Long) -> Unit,
     onDone: (Long) -> Unit
@@ -1228,7 +1286,8 @@ private fun Seek(
                     else -> false
                 }
             }
-            .border(if (foc) 2.dp else 0.dp, if (foc) pal.acc else Color.Transparent, cut(6.dp))
+            .background(if (foc || pick) pal.acc.copy(alpha = 0.10f) else Color.Transparent)
+            .border(if (foc || pick) 2.dp else 0.dp, if (foc || pick) pal.acc else Color.Transparent, cut(6.dp))
             .onSizeChanged { wide = it.width }
             .pointerInput(dur) {
                 detectTapGestures { o ->

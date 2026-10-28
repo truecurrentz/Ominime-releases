@@ -73,6 +73,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -336,7 +338,7 @@ fun Sheet(
             Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.8f * (1f - slide.value)))
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClose() }
+                .pointerInput(Unit) { detectTapGestures { onClose() } }
         )
         Column(
             Modifier
@@ -350,7 +352,7 @@ fun Sheet(
                         listOf(p.lift, p.card, p.bg)
                     )
                 )
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                .pointerInput(Unit) { detectTapGestures { } }
         ) {
             Box(
                 Modifier
@@ -532,7 +534,7 @@ fun Side(
             Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.58f * (1f - slide.value * 0.4f)))
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClose() }
+                .pointerInput(Unit) { detectTapGestures { onClose() } }
         )
         Column(
             Modifier
@@ -542,7 +544,7 @@ fun Side(
                 .clip(shape)
                 .background(p.card.copy(alpha = 0.97f))
                 .border(0.8.dp, p.line, shape)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                .pointerInput(Unit) { detectTapGestures { } }
                 .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
