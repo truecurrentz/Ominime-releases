@@ -32,7 +32,7 @@ jobs:
         run: |
           set -o pipefail
           NAME="$(git describe --tags --abbrev=0 2>/dev/null || echo 1.0)"
-          gradle :app:assemblePhoneRelease :app:assembleTvRelease --stacktrace -Pvcode=${{ github.run_number }} -Pvname="$NAME" 2>&1 | tee build.log
+          gradle :app:assemblePhoneRelease :app:assembleTvRelease --stacktrace -Pvname="$NAME" 2>&1 | tee build.log
 
       - name: report
         if: failure()
@@ -89,6 +89,14 @@ jobs:
           cp "$(find app/build/outputs/apk -name 'app-phone-release.apk' -type f | head -1)" ominime.apk
           cp "$(find app/build/outputs/apk -name 'app-tv-release.apk' -type f | head -1)" ominime-tv.apk
           ls -l ominime.apk ominime-tv.apk
+
+      - name: badge
+        id: badge
+        run: |
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* 2>/dev/null | tail -1)"
+          LINE="$("$BT/aapt" dump badging ominime.apk 2>/dev/null | head -1 || echo "no badge")"
+          echo "line=$LINE" >> "$GITHUB_OUTPUT"
+          echo "$LINE"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -150,6 +158,8 @@ jobs:
           name: Ominime ${{ github.ref_name }}
           body: |
             Ominime ${{ github.ref_name }}
+
+            ${{ steps.badge.outputs.line }}
 
             ominime.apk - phones and tablets
             ominime-tv.apk - Android TV, with the left rail and remote controls

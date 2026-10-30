@@ -14,7 +14,9 @@ android {
         minSdk = 26
         targetSdk = 35
         vectorDrawables { useSupportLibrary = true }
-        versionCode = 1000000 + ((project.findProperty("vcode") as String?)?.toIntOrNull() ?: 2)
+        val tick = (System.currentTimeMillis() / 60000L - 28000000L).toInt()
+        val ask = (project.findProperty("vcode") as String?)?.toIntOrNull() ?: 0
+        versionCode = 1000000 + maxOf(tick, ask)
         versionName = (project.findProperty("vname") as String?) ?: "1.0"
     }
 

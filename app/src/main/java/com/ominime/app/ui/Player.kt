@@ -172,6 +172,7 @@ fun Player(
     var hop by remember { mutableLongStateOf(0L) }
     var row by remember { mutableIntStateOf(2) }
     var sel by remember { mutableIntStateOf(2) }
+    var top by remember { mutableIntStateOf(0) }
     val telly = BuildConfig.tv
 
     fun flip() {
@@ -539,6 +540,14 @@ fun Player(
     val cut = cuts.firstOrNull { c -> pos / 1000.0 >= c.start && pos / 1000.0 < c.end - 0.6 }
     var jumped by remember(cfg.ep, stream?.url) { mutableStateOf<String?>(null) }
 
+    fun leap(one: aniskip.Cut) {
+        val to = (one.end * 1000).toLong()
+        exo.seekTo(to)
+        pos = to
+        jumped = one.kind + one.start
+    }
+
+
     LaunchedEffect(cut?.start, cut?.end, conf.skipauto, cfg.intro) {
         val one = cut ?: return@LaunchedEffect
         if (!conf.skipauto || !cfg.intro) return@LaunchedEffect
@@ -699,7 +708,10 @@ fun Player(
                             flip()
                         } else {
                             when (row) {
-                                0 -> onBack()
+                                0 -> {
+                                    val one = cut
+                                    if (top == 1 && one != null && cfg.intro) leap(one) else onBack()
+                                }
                                 1 -> if (dur > 0) {
                                     val at = pos
                                     val step = (dur / 90L).coerceIn(4000L, 30000L)
@@ -719,6 +731,7 @@ fun Player(
                                 }
                             }
                             row == 2 -> sel = (sel - 1).coerceAtLeast(0)
+                            row == 0 -> top = (top - 1).coerceAtLeast(0)
                             else -> move(-1)
                         }
                         true
@@ -732,6 +745,7 @@ fun Player(
                                 }
                             }
                             row == 2 -> sel = (sel + 1).coerceAtMost(8)
+                            row == 0 -> top = (top + 1).coerceAtMost(if (cut != null && cfg.intro) 1 else 0)
                             else -> move(1)
                         }
                         true
@@ -920,7 +934,11 @@ fun Player(
                     }
                     if (telly) {
                         val at = when (row) {
-                            0 -> "back"
+                            0 -> if (cut != null && cfg.intro && top == 1) {
+                                if (cut.kind.contains("ed")) "skip ending" else "skip opening"
+                            } else {
+                                "back"
+                            }
                             1 -> "scrub with left and right"
                             else -> listOf(
                                 "previous", "back 10s", "play", "forward 10s", "next",
@@ -1021,15 +1039,13 @@ fun Player(
             if (cut != null && cfg.intro) {
                 val skipShape = cut(9.dp)
                 val left = ((cut.end * 1000).toLong() - pos) / 1000L
+                val on = show && row == 0 && top == 1
                 Row(
                     Modifier
                         .clip(skipShape)
-                        .background(Color(0xE60A0A0C))
-                        .border(0.9.dp, pal.acc2.copy(alpha = 0.55f), skipShape)
-                        .press(0.97f) {
-                            exo.seekTo((cut.end * 1000).toLong())
-                            pos = (cut.end * 1000).toLong()
-                        }
+                        .background(if (on) Color(0xF2FF6A00) else Color(0xE60A0A0C))
+                        .border(if (on) 2.dp else 0.9.dp, if (on) Color.White else pal.acc2.copy(alpha = 0.55f), skipShape)
+                        .press(0.97f) { leap(cut) }
                         .padding(start = 11.dp, end = 13.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(9.dp)
@@ -1051,14 +1067,14 @@ fun Player(
                     Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                         Text(
                             if (cut.kind.contains("ed")) "SKIP ENDING" else "SKIP OPENING",
-                            color = pal.acc2,
+                            color = if (on) Color(0xFF0A0A0C) else pal.acc2,
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 1.sp
                         )
                         Text(
                             if (left > 0) "$left" + "s left" else "tap to jump",
-                            color = Color.White.copy(alpha = 0.55f),
+                            color = if (on) Color(0xFF0A0A0C).copy(alpha = 0.72f) else Color.White.copy(alpha = 0.55f),
                             fontSize = 9.sp
                         )
                     }
