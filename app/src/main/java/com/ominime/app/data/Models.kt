@@ -177,7 +177,11 @@ data class Conf(
     val subital: Boolean = false,
     val subwide: Boolean = false,
     val dsubs: String = "en",
-    val acc: String = "orange"
+    val acc: String = "orange",
+    val cid: String = "55417",
+    val token: String = "",
+    val who: String = "",
+    val pic: String = ""
 )
 
 @Serializable

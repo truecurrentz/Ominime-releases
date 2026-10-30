@@ -1,6 +1,8 @@
 package com.ominime.app.ui
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.verticalScroll
@@ -23,9 +25,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ImportExport
+import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.History
@@ -33,6 +38,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -52,7 +58,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ominime.app.data.Rec
 import com.ominime.app.data.store
+import com.ominime.app.ui.ink
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun Library(onOpen: (Int) -> Unit, onPlay: (Int, Int) -> Unit, onExplore: () -> Unit) {
@@ -278,11 +287,31 @@ private fun Saved(r: Rec, onOpen: () -> Unit, onDrop: () -> Unit) {
 private fun Move(onClose: () -> Unit) {
     val p = localpal.current
     val ctx = LocalContext.current
-    var user by remember { mutableStateOf("") }
-    var paste by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val bag by store.live.collectAsState()
+    val tok = bag.conf.token
+    val who = bag.conf.who
+    val pic = bag.conf.pic
+
+    fun say(raw: String?) {
+        val one = raw.orEmpty().replace("\n", " ").trim()
+        note = when {
+            one.isBlank() -> "Something went wrong"
+            one.contains("errors") || one.startsWith("{") -> "AniList refused that request"
+            else -> one.take(120)
+        }
+    }
+
+    LaunchedEffect(tok, pic) {
+        if (tok.isBlank() || pic.isNotBlank()) return@LaunchedEffect
+        runCatching { com.ominime.app.data.viewer(tok) }.getOrNull()?.let { me ->
+            if (me.name.isNotBlank()) {
+                store.conf(store.conf.copy(who = me.name, pic = me.avatar.orEmpty()))
+            }
+        }
+    }
 
     fun push(text: String) {
         runCatching {
@@ -299,85 +328,178 @@ private fun Move(onClose: () -> Unit) {
         }
     }
 
+    fun link() {
+        val link = "https://anilist.co/api/v2/oauth/authorize?client_id=" +
+            bag.conf.cid.ifBlank { "55417" } + "&response_type=token"
+        runCatching {
+            ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+        note = "Approve in the browser and come back"
+    }
+
+    fun pull() {
+        if (busy || tok.isBlank()) return
+        busy = true
+        note = null
+        scope.launch {
+            runCatching { com.ominime.app.data.mine(tok) }
+                .onSuccess { rows ->
+                    store.merge(rows)
+                    note = rows.size.toString() + " titles pulled from AniList"
+                }
+                .onFailure { say(it.message) }
+            busy = false
+        }
+    }
+
+    fun send() {
+        if (busy || tok.isBlank()) return
+        busy = true
+        note = null
+        scope.launch {
+            runCatching { com.ominime.app.data.syncall(tok, store.list) }
+                .onSuccess { up ->
+                    note = if (up == 0) "Nothing on your list to send" else up.toString() + " titles sent to AniList"
+                }
+                .onFailure { say(it.message) }
+            busy = false
+        }
+    }
+
+    val file = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busy = true
+        note = null
+        scope.launch {
+            val text = runCatching {
+                withContext(Dispatchers.IO) {
+                    ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
+                }
+            }.getOrDefault("")
+            val rows = runCatching { store.decode(text) }.getOrDefault(emptyList())
+            if (rows.isEmpty()) {
+                say("That file has no titles")
+            } else {
+                store.merge(rows)
+                note = rows.size.toString() + " titles read"
+            }
+            busy = false
+        }
+    }
+
     Sheet("Your list", "Move it in or out", 0.84f, onClose) {
         Column(
             Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Export", color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Text(
-                "Share every saved title and its status as JSON, so you can keep a copy anywhere.",
-                color = p.mute,
-                fontSize = 11.sp
-            )
-            Btn("Export my list", main = true) {
-                push(store.export())
+            if (tok.isBlank()) {
+                Text("AniList account", color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    "Connect once and your list and progress stay in step with AniList.",
+                    color = p.mute,
+                    fontSize = 11.sp
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Btn("Connect AniList", main = true) { link() }
+                }
+            } else {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(cut(11.dp))
+                        .background(p.glass)
+                        .border(0.8.dp, p.line, cut(11.dp))
+                        .padding(12.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        Modifier
+                            .size(46.dp)
+                            .clip(cut(10.dp))
+                            .background(p.lift)
+                            .border(1.dp, p.acc, cut(10.dp)),
+                        contentAlignment = androidx.compose.ui.Alignment.Center
+                    ) {
+                        if (pic.isBlank()) {
+                            Text(
+                                who.take(1).uppercase(),
+                                color = p.acc,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        } else {
+                            AsyncImage(
+                                model = pic,
+                                contentDescription = null,
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "ANILIST",
+                            color = p.mute,
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.4.sp
+                        )
+                        Text(
+                            who.ifBlank { "connected" },
+                            color = p.text,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Box(Modifier.size(5.dp).clip(CircleShape).background(ink.good))
+                            Spacer(Modifier.width(5.dp))
+                            Text("in sync", color = p.mute, fontSize = 10.sp)
+                        }
+                    }
+                    Text(
+                        "Unlink",
+                        color = p.mute,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(cut(6.dp))
+                            .clickable {
+                                store.conf(store.conf.copy(token = "", who = "", pic = ""))
+                                note = "AniList disconnected"
+                            }
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                    )
+                }
+                Column(
+                    Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Btn(
+                        if (busy) "Working" else "Sync AniList to Ominime",
+                        icon = Icons.Rounded.Download,
+                        mod = Modifier.fillMaxWidth()
+                    ) { pull() }
+                    Btn(
+                        if (busy) "Working" else "Sync Ominime to AniList",
+                        icon = Icons.Rounded.Upload,
+                        main = true,
+                        mod = Modifier.fillMaxWidth()
+                    ) { send() }
+                }
             }
 
             Spacer(Modifier.height(4.dp))
-            Text("Import from AniList", color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Text("Your AniList profile name, and the list must be public.", color = p.mute, fontSize = 11.sp)
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(cut(9.dp))
-                    .background(p.glass)
-                    .border(0.8.dp, p.line, cut(9.dp))
-                    .padding(horizontal = 12.dp, vertical = 12.dp)
-            ) {
-                if (user.isEmpty()) Text("AniList username", color = p.mute, fontSize = 12.5.sp)
-                androidx.compose.foundation.text.BasicTextField(
-                    value = user,
-                    onValueChange = { user = it },
-                    singleLine = true,
-                    textStyle = androidx.compose.ui.text.TextStyle(color = p.text, fontSize = 12.5.sp),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(p.acc),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            Text("Backup file", color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text("Pick an Ominime JSON export, or save one.", color = p.mute, fontSize = 11.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Btn(if (busy) "Working" else "Import AniList") {
-                    if (busy || user.isBlank()) return@Btn
-                    busy = true
-                    note = null
-                    scope.launch {
-                        val got = runCatching { com.ominime.app.data.animelist(user.trim()) }
-                        got.onSuccess { rows ->
-                            store.bulk(rows)
-                            note = if (rows.isEmpty()) "Nothing public found" else "${rows.size} titles added"
-                        }.onFailure { note = it.message ?: "Import failed" }
-                        busy = false
-                    }
+                Btn("Import JSON") {
+                    if (!busy) file.launch(arrayOf("application/json", "text/plain", "*/*"))
                 }
-                Btn("Paste JSON") {
-                    val rows = runCatching { store.decode(paste) }.getOrDefault(emptyList())
-                    if (rows.isEmpty()) {
-                        note = "Nothing to read"
-                    } else {
-                        store.bulk(rows)
-                        note = "${rows.size} titles added"
-                    }
-                }
+                Btn("Export my list") { push(store.export()) }
             }
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(84.dp)
-                    .clip(cut(9.dp))
-                    .background(p.glass)
-                    .border(0.8.dp, p.line, cut(9.dp))
-                    .padding(10.dp)
-            ) {
-                if (paste.isEmpty()) Text("Paste an Ominime JSON export here", color = p.mute, fontSize = 11.sp)
-                androidx.compose.foundation.text.BasicTextField(
-                    value = paste,
-                    onValueChange = { paste = it },
-                    textStyle = androidx.compose.ui.text.TextStyle(color = p.text, fontSize = 11.sp),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(p.acc),
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+
             note?.let {
                 Text(it, color = p.acc2, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }

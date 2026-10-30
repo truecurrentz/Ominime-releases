@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -65,6 +66,7 @@ import com.ominime.app.ui.Settings
 import com.ominime.app.ui.Skin
 import com.ominime.app.ui.Splash
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.ominime.app.ui.Watch
 import com.ominime.app.ui.chrome
 import com.ominime.app.ui.localpal
@@ -74,9 +76,29 @@ class Main : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        grab(intent)
         setContent {
             val d by store.live.collectAsState()
             Skin(d.conf.dark, d.conf.acc) { Root() }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        grab(intent)
+    }
+
+    private fun grab(i: Intent?) {
+        val raw = i?.data?.toString() ?: return
+        if (!raw.startsWith("ominime://anilist")) return
+        val tok = Regex("access_token=([^&]+)").find(raw)?.groupValues?.get(1) ?: return
+        if (tok.isBlank()) return
+        lifecycleScope.launch {
+            runCatching {
+                val me = runCatching { com.ominime.app.data.viewer(tok) }.getOrNull()
+                store.conf(store.conf.copy(token = tok, who = me?.name.orEmpty(), pic = me?.avatar.orEmpty()))
+            }
         }
     }
 }

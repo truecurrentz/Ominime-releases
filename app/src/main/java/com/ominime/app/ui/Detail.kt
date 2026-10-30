@@ -392,6 +392,7 @@ fun Detail(
                         val mm = m
                         if (mm != null && !store.has(id)) store.add(repo.rec(mm))
                         store.mark(id, key)
+                        com.ominime.app.data.sync.now(id, store.tag(id)?.ep ?: 0, key)
                     }
                     stat = key
                     track = false

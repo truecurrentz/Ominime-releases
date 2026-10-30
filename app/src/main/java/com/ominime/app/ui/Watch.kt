@@ -76,6 +76,7 @@ fun Watch(
     var play by remember { mutableStateOf<Play?>(null) }
     var at by remember { mutableIntStateOf(0) }
     var cur by remember { mutableIntStateOf(ep) }
+    LaunchedEffect(id, cur) { com.ominime.app.data.sync.now(id, cur) }
     var note by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(true) }
     var panel by remember { mutableIntStateOf(0) }

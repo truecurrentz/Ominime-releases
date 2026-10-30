@@ -90,6 +90,23 @@ object store {
         put(d.copy(list = d.list + rows.filter { it.id !in have }))
     }
 
+    fun merge(rows: List<Rec>) {
+        val d = flow.value
+        val map = rows.associateBy { it.id }
+        val keep = d.list.map { old ->
+            val n = map[old.id] ?: return@map old
+            old.copy(
+                ep = if (n.ep > old.ep) n.ep else old.ep,
+                stat = if (n.stat.isNotBlank()) n.stat else old.stat,
+                total = n.total ?: old.total,
+                aired = if (n.aired > 0) n.aired else old.aired,
+                cover = old.cover ?: n.cover
+            )
+        }
+        val have = d.list.map { it.id }.toSet()
+        put(d.copy(list = keep + rows.filter { it.id !in have }))
+    }
+
     fun notes(): List<Note> = flow.value.notes
 
     fun unread(): Int = flow.value.notes.count { !it.read }
