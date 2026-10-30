@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -80,6 +81,7 @@ fun Watch(
     var note by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(true) }
     var panel by remember { mutableIntStateOf(0) }
+    val side = remember { FocusRequester() }
     var start by remember { mutableLongStateOf(0L) }
     var kept by remember { mutableLongStateOf(0L) }
     var tryn by remember { mutableIntStateOf(0) }
@@ -207,6 +209,8 @@ fun Watch(
                 onPrev = { prev() },
                 onServers = { panel = 2 },
                 onEps = { panel = 1 },
+                lock = panel != 0,
+                land = side,
                 onProgress = { pos, dur ->
                     val md = m
                     if (md != null && dur > 0 && abs(pos - kept) > 9000) {
@@ -266,7 +270,7 @@ fun Watch(
             }
 
             if (panel == 1) {
-                EpPanel(m, eps, cur, onPick = { n ->
+                EpPanel(m, eps, cur, land = side, onPick = { n ->
                     cur = n
                     start = 0L
                     panel = 0
@@ -278,6 +282,7 @@ fun Watch(
                     at = at,
                     prov = "",
                     audio = play?.audio ?: aud ?: c.audio,
+                    land = side,
                     onPick = { i ->
                         at = i
                         panel = 0

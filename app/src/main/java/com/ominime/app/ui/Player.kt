@@ -145,6 +145,8 @@ fun Player(
     onPrev: () -> Unit,
     onServers: () -> Unit,
     onEps: () -> Unit,
+    lock: Boolean = false,
+    land: FocusRequester? = null,
     onProgress: (Long, Long) -> Unit
 ) {
     val pal = localpal.current
@@ -191,6 +193,7 @@ fun Player(
     var plat by remember { mutableStateOf("") }
     var opts by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf(false) }
+    val pane = remember { FocusRequester() }
     var side by remember { mutableStateOf<List<Subs>>(emptyList()) }
     var mine by remember { mutableStateOf<Subs?>(null) }
     var hint by remember { mutableStateOf<Pair<Int, Int>?>(null) }
@@ -494,8 +497,8 @@ fun Player(
         cuts = if (cfg.intro) runCatching { aniskip.cuts(cfg.mal, cfg.ep) }.getOrDefault(emptyList()) else emptyList()
     }
 
-    LaunchedEffect(show, playing) {
-        if (show && playing) {
+    LaunchedEffect(show, playing, panel, opts) {
+        if (show && playing && !panel && !opts && !lock) {
             delay(3600)
             show = false
         }
@@ -656,7 +659,7 @@ fun Player(
         trackver++
     }
 
-    BackHandler {
+    BackHandler(enabled = !lock) {
         when {
             panel -> panel = false
             opts -> opts = false
@@ -665,9 +668,7 @@ fun Player(
     }
 
     LaunchedEffect(show, panel, opts, telly) {
-        if (!telly) return@LaunchedEffect
-        row = 2
-        sel = 2
+        if (!telly || panel || opts || lock || !show) return@LaunchedEffect
         runCatching { pad.requestFocus() }
     }
 
@@ -677,7 +678,13 @@ fun Player(
             .background(Color.Black)
             .focusRequester(pad)
             .focusable()
-            .onFocusChanged { seat = it.isFocused }
+            .onFocusChanged {
+                seat = it.isFocused
+                if (it.isFocused) {
+                    if (panel || opts) runCatching { pane.requestFocus() }
+                    else if (lock && land != null) runCatching { land.requestFocus() }
+                }
+            }
             .onKeyEvent { e ->
                 if (!telly || e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 val code = e.nativeKeyEvent.keyCode
@@ -685,6 +692,7 @@ fun Player(
                     flip()
                     return@onKeyEvent true
                 }
+                if (panel || opts || lock) return@onKeyEvent false
                 when (e.key) {
                     Key.DirectionCenter, Key.Enter -> {
                         if (!show) {
@@ -910,6 +918,35 @@ fun Player(
                         Tap(Icons.Rounded.List, "Episodes", 40.dp, pick = bar && sel == 7) { fire(7) }
                         Tap(Icons.Rounded.Settings, "Servers", 40.dp, pick = bar && sel == 8) { fire(8) }
                     }
+                    if (telly) {
+                        val at = when (row) {
+                            0 -> "back"
+                            1 -> "scrub with left and right"
+                            else -> listOf(
+                                "previous", "back 10s", "play", "forward 10s", "next",
+                                "subtitles", "speed", "episodes", "servers"
+                            )[sel]
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                at.uppercase(),
+                                color = pal.acc,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.2.sp
+                            )
+                            Text(
+                                "arrows move  ·  ok selects  ·  up or down changes row",
+                                color = Color.White.copy(alpha = 0.34f),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1064,11 +1101,15 @@ fun Player(
                 size = ssize,
                 onPick = { g, i -> picksub(g, i) },
                 onSize = { store.conf(store.conf.copy(subsize = it)) },
+                land = pane,
                 onClose = { panel = false }
             )
         }
         if (opts) {
             BackHandler { opts = false }
+            LaunchedEffect(Unit) {
+                if (BuildConfig.tv) runCatching { pane.requestFocus() }
+            }
             Side(
                 "Playback",
                 "${cfg.title}  •  EP ${cfg.ep}",
@@ -1080,7 +1121,7 @@ fun Player(
                 ) {
                     Group("Speed", listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).map {
                         (if (it == 1f) "1x" else "${it}x") to (speed == it)
-                    }) { i ->
+                    }, land = pane) { i ->
                         val s = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)[i]
                         speed = s
                         store.conf(store.conf.copy(rate = s))
@@ -1118,6 +1159,7 @@ fun Player(
                             Pick("Episodes", false) { onEps() }
                         }
                     }
+                    Keys("arrows move  ·  ok picks  ·  back returns to the player")
                 }
             }
         }
@@ -1140,13 +1182,20 @@ private fun Screen(name: String, note: String) {
 }
 
 @Composable
-private fun Group(name: String, items: List<Pair<String, Boolean>>, onPick: (Int) -> Unit) {
+private fun Group(
+    name: String,
+    items: List<Pair<String, Boolean>>,
+    land: androidx.compose.ui.focus.FocusRequester? = null,
+    onPick: (Int) -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Screen(name, "")
         items.chunked(3).forEachIndexed { r, line ->
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
                 line.forEachIndexed { c, one ->
-                    Pick(one.first, one.second, mod = Modifier.weight(1f)) { onPick(r * 3 + c) }
+                    val at = r * 3 + c
+                    val mod = if (at == 0 && land != null) Modifier.weight(1f).focusRequester(land) else Modifier.weight(1f)
+                    Pick(one.first, one.second, mod = mod) { onPick(at) }
                 }
                 repeat(3 - line.size) { Spacer(Modifier.weight(1f)) }
             }
@@ -1392,6 +1441,7 @@ private fun SubPanel(
     size: Int,
     onPick: (Tracks.Group?, Int) -> Unit,
     onSize: (Int) -> Unit,
+    land: FocusRequester,
     onClose: () -> Unit
 ) {
     val pal = localpal.current
@@ -1400,9 +1450,8 @@ private fun SubPanel(
     val external = extra.sortedBy { langs.name(it.lang).lowercase() }
     val total = embedded.size + external.size
     val off = mine == null && embedded.none { it.second.isSelected }
-    val head = remember { FocusRequester() }
     LaunchedEffect(Unit) {
-        if (BuildConfig.tv) runCatching { head.requestFocus() }
+        if (BuildConfig.tv) runCatching { land.requestFocus() }
     }
     Side(
         "Subtitles",
@@ -1417,7 +1466,7 @@ private fun SubPanel(
             Modifier
                 .fillMaxWidth()
                 .aim(cut(8.dp), 1.02f)
-                .focusRequester(head)
+                .focusRequester(land)
                 .clip(cut(8.dp))
                 .background(if (off) Color(0x1FFFFFFF) else Color(0x0DFFFFFF))
                 .border(0.7.dp, if (off) Color(0x66FFFFFF) else Color(0x1AFFFFFF), cut(8.dp))
@@ -1468,8 +1517,22 @@ private fun SubPanel(
                     Pick(one.second, size == one.first, mod = Modifier.weight(1f)) { onSize(one.first) }
                 }
             }
+            Keys("arrows move  ·  ok picks  ·  back returns to the player")
         }
     }
+}
+
+@Composable
+private fun Keys(line: String) {
+    if (!BuildConfig.tv) return
+    Text(
+        line.uppercase(),
+        color = Color.White.copy(alpha = 0.34f),
+        fontSize = 8.5.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.1.sp,
+        modifier = Modifier.padding(top = 10.dp)
+    )
 }
 
 @Composable

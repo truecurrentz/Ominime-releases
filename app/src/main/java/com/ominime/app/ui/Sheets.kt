@@ -28,20 +28,33 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ominime.app.BuildConfig
 import com.ominime.app.data.Ep
 import com.ominime.app.data.Media
 import com.ominime.app.data.Stream
 import com.ominime.app.data.langs
 
 @Composable
-fun EpPanel(m: Media?, list: List<Ep>, cur: Int, onPick: (Int) -> Unit, onClose: () -> Unit) {
+fun EpPanel(
+    m: Media?,
+    list: List<Ep>,
+    cur: Int,
+    land: FocusRequester? = null,
+    onPick: (Int) -> Unit,
+    onClose: () -> Unit
+) {
     val p = localpal.current
     val l = rememberLazyListState()
+    LaunchedEffect(land) {
+        if (land != null && BuildConfig.tv) runCatching { land.requestFocus() }
+    }
     LaunchedEffect(cur) {
         val at = list.indexOfFirst { it.num == cur }
         if (at >= 0) runCatching { l.scrollToItem(at) }
@@ -59,6 +72,7 @@ fun EpPanel(m: Media?, list: List<Ep>, cur: Int, onPick: (Int) -> Unit, onClose:
                 Row(
                     Modifier
                         .fillMaxWidth()
+                        .then(if (i == 0 && land != null) Modifier.focusRequester(land) else Modifier)
                         .clip(shape)
                         .background(if (on) p.acc.copy(alpha = 0.14f) else p.glass)
                         .border(0.7.dp, if (on) p.acc.copy(alpha = 0.55f) else Color.Transparent, shape)
@@ -109,6 +123,7 @@ fun SrcPanel(
     at: Int,
     prov: String,
     audio: String,
+    land: FocusRequester? = null,
     onPick: (Int) -> Unit,
     onAudio: (String) -> Unit,
     onClose: () -> Unit
@@ -143,6 +158,7 @@ fun SrcPanel(
                 Row(
                     Modifier
                         .fillMaxWidth()
+                        .then(if (i == 0 && land != null) Modifier.focusRequester(land) else Modifier)
                         .clip(shape)
                         .background(if (on) p.acc.copy(alpha = 0.12f) else p.glass)
                         .border(0.8.dp, if (on) p.acc.copy(alpha = 0.55f) else p.line, shape)
