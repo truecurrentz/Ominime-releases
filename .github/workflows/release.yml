@@ -87,15 +87,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-
-          gh release create "${{ inputs.version }}" \
-            -R "${{ github.repository }}" \
-            --target main \
-            --title "Ominime ${{ inputs.version }}" \
-            --notes "Ominime ${{ inputs.version }}. Phone and TV builds, same signing key as before so it installs straight over your current app. Source zip attached, no keystore inside." \
-            ominime.apk \
-            ominime-tv.apk \
-            "ominime-source-${{ inputs.version }}.zip"
+          V="${{ inputs.version }}"
+          R="${{ github.repository }}"
+          if gh release view "$V" -R "$R" >/dev/null 2>&1; then
+            echo "release $V exists, uploading over it"
+            gh release upload "$V" -R "$R" --clobber ominime.apk ominime-tv.apk "ominime-source-$V.zip"
+          else
+            echo "creating release $V"
+            gh release create "$V" -R "$R" \
+              --title "Ominime $V" \
+              --notes "Ominime $V. Phone and TV builds, same signing key as before so it installs straight over your app. Source zip attached, no keystore inside." \
+              ominime.apk ominime-tv.apk "ominime-source-$V.zip"
+          fi
+          gh release view "$V" -R "$R" --json assets -q '.assets[] | "\(.name) \(.size)"'
 
       - name: report
         if: failure()
