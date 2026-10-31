@@ -1,0 +1,104 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: version tag and app version name
+        required: true
+        default: v1.6
+      ref:
+        description: branch or tag in Ominime-priv to build
+        required: true
+        default: arena/06664fe5-ominime-priv
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: truecurrentz/Ominime-priv
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.SOURCE_TOKEN }}
+          path: src
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: key
+        run: |
+          set -e
+          printf '%s' "${{ secrets.KEYSTORE_B64 }}" | base64 -d > src/app/ominime.p12
+          test -s src/app/ominime.p12
+          echo "keystore decoded for signing only"
+
+      - name: build
+        working-directory: src
+        env:
+          OMINIME_STORE_PASS: ${{ secrets.STORE_PASS }}
+          OMINIME_KEY_PASS: ${{ secrets.STORE_PASS }}
+        run: |
+          set -o pipefail
+          gradle :app:assemblePhoneRelease :app:assembleTvRelease \
+            -Pvname="${{ inputs.version }}" \
+            --stacktrace 2>&1 | tee ../build.log
+
+      - name: pack
+        run: |
+          set -e
+
+          cp src/app/build/outputs/apk/phone/release/*.apk ominime.apk
+          cp src/app/build/outputs/apk/tv/release/*.apk ominime-tv.apk
+
+          rm -f src/app/ominime.p12
+
+          sed -i 's/ominime2026/REDACTED/g' src/app/build.gradle.kts
+
+          zip -qr "ominime-source-${{ inputs.version }}.zip" src \
+            -x "src/.git/*" \
+               "src/.gradle/*" \
+               "src/build/*" \
+               "src/app/build/*" \
+               "*.p12" \
+               "*.jks" \
+               "*.keystore"
+
+          if unzip -l "ominime-source-${{ inputs.version }}.zip" |
+             grep -qiE '\.(p12|jks|keystore)$'; then
+            echo "keystore found in the zip, stopping"
+            exit 1
+          fi
+
+          ls -la *.apk *.zip
+
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+
+          gh release create "${{ inputs.version }}" \
+            -R "${{ github.repository }}" \
+            --target main \
+            --title "Ominime ${{ inputs.version }}" \
+            --notes "Ominime ${{ inputs.version }}. Phone and TV builds, same signing key as before so it installs straight over your current app. Source zip attached, no keystore inside." \
+            ominime.apk \
+            ominime-tv.apk \
+            "ominime-source-${{ inputs.version }}.zip"
+
+      - name: report
+        if: failure()
+        run: |
+          grep -E "^e: |error:|FAILURE|Caused by|aapt2" build.log |
+            head -40 || true
