@@ -52,7 +52,19 @@ jobs:
           set -o pipefail
           gradle :app:assemblePhoneRelease :app:assembleTvRelease \
             -Pvname="${{ inputs.version }}" \
-            --stacktrace 2>&1 | tee ../build.log
+            --stacktrace 2>&1 | tee ../build.log || FAIL=1
+          if [ -n "${FAIL:-}" ]; then
+            grep -n "e: " ../build.log | head -40 | while IFS= read -r line; do
+              echo "::error title=compile::${line}"
+            done
+            grep -n "What went wrong" -A 4 ../build.log | head -20 | while IFS= read -r line; do
+              echo "::error title=gradle::${line}"
+            done
+            tail -20 ../build.log | while IFS= read -r line; do
+              echo "::error title=tail::${line}"
+            done
+            exit 1
+          fi
 
       - name: pack
         run: |
